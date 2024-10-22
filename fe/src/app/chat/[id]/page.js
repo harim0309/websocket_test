@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+import axios from "axios";
 
 export default function ChatPage({ params }) {
   const { id: roomId } = params; // roomId는 URL 파라미터에서 추출
@@ -12,7 +12,21 @@ export default function ChatPage({ params }) {
     `User_${Math.floor(Math.random() * 1000)}`
   );
 
+  // 이전 메시지 불러오기
   useEffect(() => {
+    const fetchChatHistory = async () => {
+      try {
+        const response = await axios.get(
+          `http://localhost:3001/api/messages/${roomId}`
+        );
+        setChatLog(response.data);
+      } catch (error) {
+        console.error("Error fetching chat history:", error);
+      }
+    };
+
+    fetchChatHistory();
+
     const ws = new WebSocket(`ws://${location.hostname}:8080/chat/${roomId}`);
 
     ws.onopen = () => {
@@ -21,8 +35,22 @@ export default function ChatPage({ params }) {
 
     ws.onmessage = (event) => {
       const receivedMessage = JSON.parse(event.data);
-      setChatLog((prev) => [...prev, receivedMessage]);
+
+      if (receivedMessage.type === "NEW_CHAT_ROOM") {
+        // 새 채팅방을 chatRooms 상태에 추가
+        setChatRooms((prevRooms) => [
+          ...prevRooms,
+          { id: receivedMessage.roomId, name: receivedMessage.roomName },
+        ]);
+      } else {
+        // 기존의 메시지 처리
+        setChatLog((prev) => [...prev, receivedMessage]);
+      }
     };
+    // ws.onmessage = (event) => {
+    //   const receivedMessage = JSON.parse(event.data);
+    //   setChatLog((prev) => [...prev, receivedMessage]);
+    // };
 
     ws.onclose = () => {
       console.log("Disconnected from WebSocket server");
@@ -40,7 +68,7 @@ export default function ChatPage({ params }) {
       const messageData = {
         nickname,
         message,
-        roomId, // roomId 추가
+        roomId,
       };
       socket.send(JSON.stringify(messageData));
       setMessage("");
