@@ -4,10 +4,15 @@ import Link from "next/link";
 import axios from "axios";
 
 export default function Home() {
+  // 사용자 이름
   const [username, setUsername] = useState("");
+  // 사용자 ID
   const [userId, setUserId] = useState(null);
+  // 채팅방 목록
   const [chatRooms, setChatRooms] = useState([]);
-  const [newRoomName, setNewRoomName] = useState("");
+  // 대화할 상대
+  const [targetUserIdsInput, setTargetUserIdsInput] = useState("");
+  const [targetUserIds, setTargetUserIds] = useState([]);
 
   // 로그인
   const handleLogin = async () => {
@@ -38,63 +43,69 @@ export default function Home() {
 
   // 채팅방 추가
   const handleAddRoom = async () => {
-    if (!newRoomName || !userId) return;
+    if (!userId || targetUserIds.length === 0) return;
     try {
       const response = await axios.post("http://localhost:3001/api/rooms", {
-        roomName: newRoomName,
         userId,
+        targetUserIds,
       });
 
       if (response.status === 200) {
-        setNewRoomName("");
-        fetchChatRooms();
+        setTargetUserIds([]);
+        setTargetUserIdsInput("");
+        fetchChatRooms(); // 새로 추가된 방 목록 갱신
       }
     } catch (error) {
       console.error("Error adding room:", error);
     }
   };
 
+  // 사용자 입력 처리: 쉼표로 구분된 ID를 배열로 변환
+  const handleTargetUserIdsChange = (e) => {
+    setTargetUserIdsInput(e.target.value);
+    const ids = e.target.value.split(",").map((id) => id.trim()); // 쉼표로 구분하고 공백 제거
+    setTargetUserIds(ids);
+  };
+
   useEffect(() => {
     fetchChatRooms();
   }, [userId]);
 
-  console.log("chatRooms :", chatRooms);
-
   return (
     <div className="flex flex-col h-screen p-5">
       <h1 className="mb-5 text-center">Chat Rooms</h1>
-      {!userId ? (
-        <div className="flex flex-col gap-2">
+      {/* {!userId ? ( */}
+      <div className="flex flex-col gap-2">
+        <input
+          type="text"
+          placeholder="Enter your username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="text-gray-800"
+        />
+        <button onClick={handleLogin}>Login</button>
+      </div>
+      {/* ) : ( */}
+      <>
+        <ul className="flex-1 pl-5 list-disc">
+          {chatRooms.map((room) => (
+            <li key={room.id}>
+              <Link href={`/chat/${room.id}`}>Chat Room {room.id}</Link>
+            </li>
+          ))}
+        </ul>
+        <div>
           <input
             type="text"
-            placeholder="Enter your username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            placeholder="New Room Name"
+            value={targetUserIdsInput}
+            onChange={handleTargetUserIdsChange}
             className="text-gray-800"
           />
-          <button onClick={handleLogin}>Login</button>
+          <button onClick={handleAddRoom}>Add Room</button>
         </div>
-      ) : (
-        <>
-          <ul className="flex-1 pl-5 list-disc">
-            {chatRooms.map((room) => (
-              <li key={room.id}>
-                <Link href={`/chat/${room.id}`}>Chat Room {room.id}</Link>
-              </li>
-            ))}
-          </ul>
-          <div>
-            <input
-              type="text"
-              placeholder="New Room Name"
-              value={newRoomName}
-              onChange={(e) => setNewRoomName(e.target.value)}
-              className="text-gray-800"
-            />
-            <button onClick={handleAddRoom}>Add Room</button>
-          </div>
-        </>
-      )}
+      </>
+      {/* )} */}
     </div>
   );
 }

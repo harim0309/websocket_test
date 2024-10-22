@@ -69,29 +69,66 @@ app.get("/api/rooms/:userId", (req, res) => {
 
 // 채팅방 추가 API
 app.post("/api/rooms", (req, res) => {
-  const { roomName, userId } = req.body;
+  const { userId, targetUserIds } = req.body; // targetUserIds는 배열로 받음
 
-  console.log("Adding room:", roomName, "for user:", userId); // 로그 추가
-
+  // 입력된 userId와 targetUserIds에 해당하는 사용자들의 이름을 조회
+  const allUserIds = [userId, ...targetUserIds]; // 방 생성자와 대상 사용자들 모두 포함
   db.query(
-    "INSERT INTO chat_rooms (room_name, creator_id) VALUES (?, ?)", // creator_id도 추가
-    [roomName, userId],
+    "SELECT username FROM users WHERE id IN (?)",
+    [allUserIds],
     (err, results) => {
       if (err) {
-        console.error("Database error:", err); // 오류 로그
+        console.error("Error fetching usernames:", err);
         return res.status(500).send("Database error");
       }
 
-      const roomId = results.insertId;
+      // 사용자 이름들을 배열로 가져옴
+      const usernames = results.map((row) => row.username);
+
+      // 사용자 이름들을 쉼표로 구분해서 roomName 생성
+      const roomName = usernames.join(", ");
+
+      // 채팅방 생성
       db.query(
-        "INSERT INTO room_members (room_id, user_id) VALUES (?, ?)",
-        [roomId, userId],
-        (err) => {
+        "INSERT INTO chat_rooms (room_name, creator_id) VALUES (?, ?)",
+        [roomName, userId], // 사용자 이름을 조합한 방 이름과 생성자 ID
+        (err, results) => {
           if (err) {
-            console.error("Database error:", err); // 오류 로그
+            console.error("Error creating chat room:", err);
             return res.status(500).send("Database error");
           }
-          res.json({ roomId });
+
+          const roomId = results.insertId; // 새로 생성된 방 ID
+
+          // 생성된 방에 방 생성자 추가
+          db.query(
+            "INSERT INTO room_members (room_id, user_id) VALUES (?, ?)",
+            [roomId, userId],
+            (err) => {
+              if (err) {
+                console.error("Error adding creator to room:", err);
+                return res.status(500).send("Database error");
+              }
+
+              // targetUserIds 배열을 사용하여 다수의 상대방 추가
+              const values = targetUserIds.map((targetUserId) => [
+                roomId,
+                targetUserId,
+              ]);
+
+              db.query(
+                "INSERT INTO room_members (room_id, user_id) VALUES ?",
+                [values], // 여러 명을 한 번에 추가
+                (err) => {
+                  if (err) {
+                    console.error("Error adding target users to room:", err);
+                    return res.status(500).send("Database error");
+                  }
+                  res.json({ roomId, roomName }); // 생성된 방 ID와 이름 반환
+                }
+              );
+            }
+          );
         }
       );
     }
