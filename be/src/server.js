@@ -6,7 +6,7 @@ const cors = require("cors");
 
 // MySQL 데이터베이스 연결 설정
 const db = mysql.createConnection({
-  host: "localhost",
+  host: "0.0.0.0",
   user: "root", // 사용자 이름
   password: "0309", // 비밀번호
   database: "websocket_test", // 사용할 데이터베이스 이름
@@ -21,7 +21,8 @@ db.connect((err) => {
 const app = express();
 app.use(
   cors({
-    origin: "http://localhost:3000", // 클라이언트의 주소
+    origin: "*", // 클라이언트의 주소
+    // origin: "http://localhost:3000", // 클라이언트의 주소
     methods: ["GET", "POST"], // 허용할 HTTP 메서드
     credentials: true, // 쿠키와 인증 헤더를 허용
   })
@@ -124,6 +125,21 @@ app.post("/api/rooms", (req, res) => {
                     console.error("Error adding target users to room:", err);
                     return res.status(500).send("Database error");
                   }
+
+                  // WebSocket을 통해 다른 클라이언트에게 새 채팅방 생성 소식 전송
+                  const message = JSON.stringify({
+                    type: "NEW_CHAT_ROOM",
+                    roomId,
+                    roomName,
+                  });
+
+                  // 모든 클라이언트에게 새 채팅방 소식 전송
+                  wss.clients.forEach((client) => {
+                    if (client.readyState === WebSocket.OPEN) {
+                      client.send(message);
+                    }
+                  });
+
                   res.json({ roomId, roomName }); // 생성된 방 ID와 이름 반환
                 }
               );
@@ -131,6 +147,23 @@ app.post("/api/rooms", (req, res) => {
           );
         }
       );
+    }
+  );
+});
+
+// 채팅 메시지 조회 API
+app.get("/api/messages/:roomId", (req, res) => {
+  const roomId = req.params.roomId;
+
+  db.query(
+    "SELECT * FROM messages WHERE room_id = ? ORDER BY timestamp ASC",
+    [roomId],
+    (err, results) => {
+      if (err) {
+        console.error("Database error:", err.message); // 에러 메시지 출력
+        return res.status(500).send("Database error");
+      }
+      res.json(results); // 채팅 메시지 반환
     }
   );
 });
