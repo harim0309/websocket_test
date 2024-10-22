@@ -1,8 +1,7 @@
 "use client";
-
 import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 
-// React 컴포넌트 정의
 export default function ChatPage({ params }) {
   const { id: roomId } = params; // roomId는 URL 파라미터에서 추출
 
@@ -14,20 +13,19 @@ export default function ChatPage({ params }) {
   );
 
   useEffect(() => {
-    // roomId에 따라 WebSocket 연결
     const ws = new WebSocket(`ws://${location.hostname}:8080/chat/${roomId}`);
 
     ws.onopen = () => {
-      console.log(`Connected to WebSocket server, room: ${roomId}`);
+      console.log("Connected to WebSocket server");
     };
 
     ws.onmessage = (event) => {
-      const receivedMessage = JSON.parse(event.data); // JSON으로 받은 메시지를 파싱
+      const receivedMessage = JSON.parse(event.data);
       setChatLog((prev) => [...prev, receivedMessage]);
     };
 
     ws.onclose = () => {
-      console.log(`Disconnected from WebSocket server, room: ${roomId}`);
+      console.log("Disconnected from WebSocket server");
     };
 
     setSocket(ws);
@@ -35,15 +33,16 @@ export default function ChatPage({ params }) {
     return () => {
       ws.close();
     };
-  }, [roomId]); // roomId가 변경될 때마다 새로운 WebSocket 연결
+  }, [roomId]);
 
   const sendMessage = () => {
     if (socket && message) {
       const messageData = {
         nickname,
         message,
+        roomId, // roomId 추가
       };
-      socket.send(JSON.stringify(messageData)); // 메시지를 JSON 형식으로 서버에 전송
+      socket.send(JSON.stringify(messageData));
       setMessage("");
     }
   };
